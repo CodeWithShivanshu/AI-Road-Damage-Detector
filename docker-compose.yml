@@ -1,0 +1,15 @@
+services:
+  pothole-detect:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: real-time-pothole-detection:latest
+    container_name: pothole_detector
+    volumes:
+      # Mount output directory to host so you can view detection results locally
+      - ./runs:/app/runs
+      # Mount custom models/weights directory
+      - ./weights:/app/weights
+      # Mount sample inputs if desired
+      - ./yolov5/data/images:/app/yolov5/data/images
+    command: python detect.py --weights yolov5s.pt --source yolov5/data/images/img.jpg --project runs/detect --name exp

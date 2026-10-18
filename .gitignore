@@ -1,0 +1,48 @@
+# Python bytecode and caches
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Virtual Environments
+.venv/
+venv/
+ENV/
+env/
+
+# Operating System Files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# IDE & Editor Settings
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Environment Variables
+.env
+.env.local
+
+# Machine Learning Outputs & Runs
+runs/
+data/snapshots/
+data/uploads/
+*.log
+
+# Large Dataset caches
+*.cache
+*.zip
+*.tar.gz
+
+# Note: Preserving default weights and test media
+!weights/pothole_best.pt
+!data/videos/road_test.mp4

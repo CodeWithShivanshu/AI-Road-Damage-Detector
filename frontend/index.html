@@ -1,0 +1,271 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>RoadVision AI - Autonomous Road Damage & Pothole Detection</title>
+  <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+
+  <div class="app-container">
+    
+    <!-- TOP HEADER -->
+    <header class="main-header">
+      <div class="brand-wrapper">
+        <div class="brand-icon">
+          <svg viewBox="0 0 24 24">
+            <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/>
+          </svg>
+        </div>
+        <div class="brand-text">
+          <h1>ROADVISION AI</h1>
+          <p>Autonomous Road Damage & Pothole Telemetry</p>
+        </div>
+      </div>
+
+      <div class="header-status-group">
+        <div class="model-chip">
+          MODEL: <span id="active-model-name">pothole_best.pt</span>
+        </div>
+        <div class="model-chip">
+          SOURCE: <span id="active-source-name">TEST VIDEO</span>
+        </div>
+        <div class="live-badge">
+          <span class="pulse-dot"></span>
+          LIVE DETECTION
+        </div>
+      </div>
+    </header>
+
+    <!-- TOP TELEMETRY CARDS -->
+    <section class="stats-grid">
+      
+      <!-- Card 1: Total Potholes -->
+      <div class="stat-card card-potholes">
+        <div class="stat-header">
+          <span class="stat-title">Total Potholes Detected</span>
+          <div class="stat-icon" style="color: var(--accent-crimson);">
+            <svg width="20" height="20" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/></svg>
+          </div>
+        </div>
+        <div class="stat-value-group">
+          <span class="stat-value" id="stat-total-potholes">0</span>
+          <span class="stat-unit">unique hazards</span>
+        </div>
+        <div class="stat-footer">
+          <span>Tracked & deduplicated across frames</span>
+        </div>
+      </div>
+
+      <!-- Card 2: Inference FPS -->
+      <div class="stat-card card-fps">
+        <div class="stat-header">
+          <span class="stat-title">Inference Speed</span>
+          <div class="stat-icon" style="color: var(--accent-emerald);">
+            <svg width="20" height="20" fill="currentColor" viewBox="0 0 24 24"><path d="M13 2.05v3.03c3.39.49 6 3.39 6 6.92 0 .9-.18 1.75-.48 2.54l2.6 1.53c.56-1.24.88-2.62.88-4.07 0-5.18-3.95-9.45-9-9.95zM12 19c-3.87 0-7-3.13-7-7 0-3.53 2.61-6.43 6-6.92V2.05c-5.06.5-9 4.76-9 9.95 0 5.52 4.47 10 9.99 10 3.31 0 6.24-1.61 8.01-4.08l-2.45-1.48C16.29 17.8 14.28 19 12 19z"/></svg>
+          </div>
+        </div>
+        <div class="stat-value-group">
+          <span class="stat-value" id="stat-fps">0.0</span>
+          <span class="stat-unit">FPS</span>
+        </div>
+        <div class="stat-footer">
+          <span>Latency: <strong id="stat-latency" style="color: #fff;">0.0ms</strong> (CPU Native)</span>
+        </div>
+      </div>
+
+      <!-- Card 3: Road Quality Index -->
+      <div class="stat-card card-score">
+        <div class="stat-header">
+          <span class="stat-title">Road Quality Index</span>
+          <div class="stat-icon" style="color: var(--accent-cyan);">
+            <svg width="20" height="20" fill="currentColor" viewBox="0 0 24 24"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg>
+          </div>
+        </div>
+        <div class="stat-value-group">
+          <span class="stat-value" id="stat-road-score">100%</span>
+          <span class="stat-unit">RQI health</span>
+        </div>
+        <div class="stat-footer">
+          <span>Dynamic safety score assessment</span>
+        </div>
+      </div>
+
+      <!-- Card 4: Frame Hazards -->
+      <div class="stat-card card-severity">
+        <div class="stat-header">
+          <span class="stat-title">Current In-Frame Hazards</span>
+          <div class="stat-icon" style="color: var(--accent-amber);">
+            <svg width="20" height="20" fill="currentColor" viewBox="0 0 24 24"><path d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zM12 17c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5zm0-8c-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3-1.34-3-3-3z"/></svg>
+          </div>
+        </div>
+        <div class="stat-value-group">
+          <span class="stat-value" id="stat-current-detections">0</span>
+          <span class="stat-unit">hazards in view</span>
+        </div>
+        <div class="stat-footer">
+          <span>Immediate visual sector</span>
+        </div>
+      </div>
+
+    </section>
+
+    <!-- MAIN DASHBOARD CONTENT -->
+    <main class="dashboard-grid">
+
+      <!-- LEFT: VIDEO STREAM PANEL -->
+      <div class="stream-panel">
+        <div class="panel-header">
+          <div class="panel-title">
+            <svg width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"/></svg>
+            Live Neural Vision Feed
+          </div>
+          <div class="hud-pill">640×640 TENSOR</div>
+        </div>
+
+        <!-- Video Canvas Image -->
+        <div class="video-container">
+          <img id="live-stream-img" src="/api/stream" class="stream-image" alt="Live AI Detection Feed">
+          <div class="stream-overlay-hud">
+            <div class="hud-pill">YOLOv5 v6.1 • REAL-TIME NMS</div>
+          </div>
+        </div>
+
+        <!-- Stream Controls & Input Sources -->
+        <div class="stream-controls-bar">
+          <div class="source-selectors">
+            <button id="btn-src-test_video" class="btn-source active">
+              <span>🎬</span> Road Test Video
+            </button>
+            <button id="btn-src-webcam" class="btn-source">
+              <span>💻</span> Laptop Camera
+            </button>
+            <button id="btn-src-usb_phone" class="btn-source">
+              <span>📱</span> USB Android Phone
+            </button>
+            <button id="btn-upload-video" class="btn-secondary">
+              <span>📁</span> Upload Video
+            </button>
+            <input type="file" id="custom-video-input" accept="video/mp4,video/avi" style="display: none;">
+          </div>
+
+          <div class="control-actions">
+            <!-- Confidence Slider -->
+            <div class="slider-group">
+              <label for="conf-slider">Conf:</label>
+              <input type="range" id="conf-slider" min="0.10" max="0.85" step="0.05" value="0.25">
+              <span id="conf-value-display">25%</span>
+            </div>
+
+            <!-- Reset Button -->
+            <button id="btn-reset-session" class="btn-secondary" title="Reset Session Counters">
+              🔄 Reset
+            </button>
+
+            <!-- Export Button -->
+            <button id="btn-export-csv" class="btn-primary" title="Export CSV Report">
+              📥 Export CSV
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- RIGHT: TELEMETRY SIDEBAR & FEED -->
+      <aside class="sidebar-panel">
+
+        <!-- Severity Breakdown -->
+        <div class="breakdown-card">
+          <div class="panel-title">
+            <svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/></svg>
+            Severity Classification
+          </div>
+
+          <div class="breakdown-grid">
+            <div class="severity-pill-card critical">
+              <span class="sev-label">Critical</span>
+              <div class="sev-count" id="count-critical">0</div>
+            </div>
+            <div class="severity-pill-card moderate">
+              <span class="sev-label">Moderate</span>
+              <div class="sev-count" id="count-moderate">0</div>
+            </div>
+            <div class="severity-pill-card minor">
+              <span class="sev-label">Minor</span>
+              <div class="sev-count" id="count-minor">0</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Recent Detections Log Feed -->
+        <div class="feed-card">
+          <div class="panel-header">
+            <div class="panel-title">
+              <svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+              Live Detection Log
+            </div>
+            <span style="font-size: 0.78rem; color: var(--text-muted);">Snapshots</span>
+          </div>
+
+          <div id="detections-feed-list" class="feed-list">
+            <!-- Dynamically populated by app.js -->
+            <div style="text-align: center; padding: 32px 16px; color: var(--text-muted); font-size: 0.85rem;">
+              Initializing detection stream...
+            </div>
+          </div>
+        </div>
+
+      </aside>
+
+    </main>
+
+  </div>
+
+  <!-- USB ANDROID PHONE CAMERA MODAL -->
+  <div id="usb-camera-modal" class="modal-backdrop">
+    <div class="modal-window">
+      <div class="modal-header">
+        <h3 class="modal-title">📱 Android USB Camera Connection</h3>
+        <button id="btn-close-modal" class="modal-close">&times;</button>
+      </div>
+      <div class="modal-body">
+        <p>Stream high-resolution road video from your Android phone mounted on the dashboard via USB cable:</p>
+        
+        <div class="step-card">
+          <div class="step-title">Step 1: Install Phone App & Enable USB Debugging</div>
+          <div>Install <strong>IP Webcam</strong> (or DroidCam) from Google Play. Enable <em>USB Debugging</em> in Developer Options on your phone.</div>
+        </div>
+
+        <div class="step-card">
+          <div class="step-title">Step 2: Connect Phone via USB & Start Server</div>
+          <div>Plug your phone into your Mac via USB. In the app, scroll to the bottom and tap <strong>Start Server</strong>.</div>
+        </div>
+
+        <div class="step-card">
+          <div class="step-title">Step 3: Connect Stream</div>
+          <div>Click the button below to auto-forward the port through USB cable, or enter the stream URL directly:</div>
+          
+          <div style="margin-top: 12px; display: flex; gap: 10px;">
+            <button id="btn-adb-connect" class="btn-primary" style="flex: 1;">
+              ⚡ Auto ADB USB Forward
+            </button>
+          </div>
+          <div id="adb-status-text" style="font-size: 0.78rem; margin-top: 6px; color: var(--text-muted);"></div>
+
+          <div style="margin-top: 12px;">
+            <label style="font-size: 0.78rem; font-weight: 600; color: var(--text-secondary);">Direct Stream URL (e.g. Wi-Fi IP or Localhost):</label>
+            <div style="display: flex; gap: 8px; margin-top: 4px;">
+              <input type="text" id="input-phone-url" value="http://127.0.0.1:8080/video" 
+                     style="flex: 1; padding: 8px 12px; background: rgba(255,255,255,0.06); border: 1px solid var(--border-subtle); border-radius: 8px; color: #fff; font-family: var(--font-mono); font-size: 0.8rem;">
+              <button id="btn-apply-phone-stream" class="btn-secondary">Connect</button>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+  <script src="/static/js/app.js"></script>
+</body>
+</html>
