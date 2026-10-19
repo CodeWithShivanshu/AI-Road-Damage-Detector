@@ -21,6 +21,7 @@ from utils.datasets import letterbox
 from utils.torch_utils import select_device, time_sync
 
 from backend.database import record_detection
+from backend.location import gps_tracker
 
 SNAPSHOTS_DIR = ROOT / "data" / "snapshots"
 SNAPSHOTS_DIR.mkdir(parents=True, exist_ok=True)
@@ -105,13 +106,18 @@ class PotholeTracker:
                     cv2.imwrite(str(snap_file), crop)
                     snapshot_rel_path = f"/snapshots/{snap_name}"
 
+                # Get lane-aware GPS coordinates
+                curr_lat, curr_lng = gps_tracker.get_hazard_location(cx=cx, frame_w=w)
+
                 # Save in database
                 record_detection(
                     inspection_id=inspection_id,
                     confidence=float(conf),
                     severity=severity,
                     bbox=[x1, y1, x2, y2],
-                    snapshot_path=snapshot_rel_path
+                    snapshot_path=snapshot_rel_path,
+                    lat=curr_lat,
+                    lng=curr_lng
                 )
 
                 self.tracked_objects[new_id] = {
@@ -120,10 +126,14 @@ class PotholeTracker:
                     "missing": 0,
                     "severity": severity,
                     "conf": conf,
-                    "snapshot": snapshot_rel_path
+                    "snapshot": snapshot_rel_path,
+                    "lat": curr_lat,
+                    "lng": curr_lng
                 }
                 det["track_id"] = new_id
                 det["is_new"] = True
+                det["lat"] = curr_lat
+                det["lng"] = curr_lng
 
             updated_detections.append(det)
 
@@ -297,6 +307,7 @@ class InferenceEngine:
             "moderate_count": self.tracker.moderate_count,
             "minor_count": self.tracker.minor_count,
             "road_score": road_score,
+            "current_location": gps_tracker.get_current_location(),
             "detections": [{
                 "track_id": d.get("track_id", 0),
                 "severity": d["severity"],

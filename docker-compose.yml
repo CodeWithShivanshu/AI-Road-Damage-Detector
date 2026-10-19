@@ -1,15 +1,19 @@
 services:
-  pothole-detect:
+  roadvision-ai:
     build:
       context: .
       dockerfile: Dockerfile
-    image: real-time-pothole-detection:latest
-    container_name: pothole_detector
+    image: roadvision-ai:latest
+    container_name: roadvision_ai
+    ports:
+      - "8000:8000"
+    environment:
+      - PYTHONUNBUFFERED=1
     volumes:
-      # Mount output directory to host so you can view detection results locally
-      - ./runs:/app/runs
-      # Mount custom models/weights directory
+      # Persist detections, SQLite database, snapshots, and uploads on the host
+      - ./data:/app/data
+      # Mount model weights
       - ./weights:/app/weights
-      # Mount sample inputs if desired
-      - ./yolov5/data/images:/app/yolov5/data/images
-    command: python detect.py --weights yolov5s.pt --source yolov5/data/images/img.jpg --project runs/detect --name exp
+      # Mount detection runs and logs
+      - ./runs:/app/runs
+    restart: unless-stopped

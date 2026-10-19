@@ -45,6 +45,10 @@ class Settings:
         self.SERVER_PORT: int = int(os.getenv("SERVER_PORT", "8000"))
         self.DEFAULT_PHONE_STREAM_URL: str = os.getenv("DEFAULT_PHONE_STREAM_URL", "http://127.0.0.1:8080/video")
 
+        # Google Maps / Clair API
+        self.GOOGLE_MAPS_API_KEY: str = os.getenv("GOOGLE_MAPS_API_KEY", "clair_7nUY5MStJwiTqRzcCrzyBf1xehkXsQzu2")
+        self.CLAIR_MAPS_API_URL: str = os.getenv("CLAIR_MAPS_API_URL", "https://api.clair.im/v1/google-maps/search")
+
     def ensure_directories(self) -> None:
         """Ensure runtime data directories exist."""
         self.WEIGHTS_DIR.mkdir(parents=True, exist_ok=True)

@@ -5,6 +5,9 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>RoadVision AI - Autonomous Road Damage & Pothole Detection</title>
   <link rel="stylesheet" href="/static/css/style.css">
+  <!-- Leaflet Dark Map Styles & Engine -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""/>
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
 </head>
 <body>
 
@@ -23,6 +26,19 @@
           <p>Autonomous Road Damage & Pothole Telemetry</p>
         </div>
       </div>
+
+      <!-- VIEW NAVIGATION TABS -->
+      <nav class="view-switcher-group" aria-label="Dashboard Views">
+        <button id="tab-btn-vision" class="view-tab-btn active">
+          <span class="tab-icon">📹</span> Live Vision
+        </button>
+        <button id="tab-btn-map" class="view-tab-btn">
+          <span class="tab-icon">🗺️</span> Damage Map <span class="tab-badge">Route</span>
+        </button>
+        <button id="tab-btn-split" class="view-tab-btn">
+          <span class="tab-icon">⚡</span> Dual Screen
+        </button>
+      </nav>
 
       <div class="header-status-group">
         <div class="model-chip">
@@ -171,6 +187,76 @@
         </div>
       </div>
 
+      <!-- CENTER/MAP: INTERACTIVE ROUTE & DAMAGE MAP PANEL -->
+      <div class="map-panel" id="map-panel-container">
+        <div class="panel-header">
+          <div class="panel-title">
+            <svg width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7"/></svg>
+            Inspection Route & Damage Map ("Kaha se Kaha tak")
+          </div>
+          <div class="map-header-badges">
+            <span class="hud-pill" id="route-distance-pill">0.00 KM TRAVELED</span>
+            <span class="hud-pill success" id="gps-status-pill">📡 GPS: SIMULATED (36 KM/H)</span>
+          </div>
+        </div>
+
+        <!-- GOOGLE MAPS CLAIR SEARCH & PRESETS BAR -->
+        <div class="map-toolbar">
+          <div class="search-input-wrapper">
+            <input type="text" id="map-search-input" placeholder="🔍 Search city, road, or area via Google Maps (e.g. Connaught Place, Denver, Mumbai)...">
+            <button id="btn-map-search" class="btn-primary">Search</button>
+            <div id="search-results-dropdown" class="search-dropdown hidden"></div>
+          </div>
+          <div class="map-preset-chips">
+            <button class="chip-preset" data-query="New Delhi">📍 Delhi</button>
+            <button class="chip-preset" data-query="Marine Drive Mumbai">📍 Mumbai</button>
+            <button class="chip-preset" data-query="MG Road Bangalore">📍 Bangalore</button>
+            <button class="chip-preset" data-query="Denver Colorado">📍 Denver</button>
+            <button id="btn-device-gps" class="chip-preset special" title="Stream GPS from your device/phone">📱 My Live GPS</button>
+          </div>
+        </div>
+
+        <!-- ROUTE SUMMARY BANNER -->
+        <div class="route-summary-bar">
+          <div class="route-point-item">
+            <span class="route-point-label">START POINT</span>
+            <span class="route-point-value" id="route-start-name">New Delhi, India</span>
+          </div>
+          <div class="route-arrow">➔</div>
+          <div class="route-point-item">
+            <span class="route-point-label">CURRENT POSITION</span>
+            <span class="route-point-value" id="route-current-coords">28.6139° N, 77.2090° E</span>
+          </div>
+          <div class="route-stat-item">
+            <span class="route-point-label">DAMAGE DETECTED</span>
+            <span class="route-point-value highlight" id="route-total-hazards">0 Hazards</span>
+          </div>
+          <div class="route-actions">
+            <button id="btn-center-map" class="btn-secondary btn-sm" title="Follow Moving Vehicle">🎯 Follow</button>
+            <button id="btn-fit-hazards" class="btn-secondary btn-sm" title="Fit All Detected Potholes in View">🔍 Fit All</button>
+            <button id="btn-clear-route" class="btn-secondary btn-sm" title="Reset Route Path">🔄 Reset</button>
+          </div>
+        </div>
+
+        <!-- LEAFLET MAP CONTAINER -->
+        <div class="map-wrapper">
+          <!-- MAP LAYER SWITCHER -->
+          <div class="map-layer-selector">
+            <button class="layer-btn active" data-layer="dark" title="Cyber dark road map">🌑 Dark Mode</button>
+            <button class="layer-btn" data-layer="satellite" title="Real satellite imagery">🛰️ Satellite</button>
+            <button class="layer-btn" data-layer="streets" title="Clean street cartography">🗺️ Streets</button>
+          </div>
+
+          <div id="damageMap" class="leaflet-map-element"></div>
+          <div class="map-floating-legend">
+            <div class="legend-item"><span class="legend-dot critical"></span> Critical Pothole</div>
+            <div class="legend-item"><span class="legend-dot moderate"></span> Moderate Damage</div>
+            <div class="legend-item"><span class="legend-dot minor"></span> Minor Flaw</div>
+            <div class="legend-item"><span class="legend-line route"></span> Driven Route</div>
+          </div>
+        </div>
+      </div>
+
       <!-- RIGHT: TELEMETRY SIDEBAR & FEED -->
       <aside class="sidebar-panel">
 
@@ -204,7 +290,15 @@
               <svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
               Live Detection Log
             </div>
-            <span style="font-size: 0.78rem; color: var(--text-muted);">Snapshots</span>
+            <span style="font-size: 0.78rem; color: var(--text-muted);">Click to Focus Map</span>
+          </div>
+
+          <!-- Log Severity Filter Bar -->
+          <div class="feed-filter-bar">
+            <button class="filter-chip active" data-filter="all">All (<span id="filter-count-all">0</span>)</button>
+            <button class="filter-chip critical" data-filter="Critical">Critical (<span id="filter-count-crit">0</span>)</button>
+            <button class="filter-chip moderate" data-filter="Moderate">Moderate (<span id="filter-count-mod">0</span>)</button>
+            <button class="filter-chip minor" data-filter="Minor">Minor (<span id="filter-count-min">0</span>)</button>
           </div>
 
           <div id="detections-feed-list" class="feed-list">
@@ -223,45 +317,90 @@
 
   <!-- USB ANDROID PHONE CAMERA MODAL -->
   <div id="usb-camera-modal" class="modal-backdrop">
-    <div class="modal-window">
+    <div class="modal-window" style="max-width: 580px;">
       <div class="modal-header">
         <h3 class="modal-title">📱 Android USB Camera Connection</h3>
         <button id="btn-close-modal" class="modal-close">&times;</button>
       </div>
       <div class="modal-body">
-        <p>Stream high-resolution road video from your Android phone mounted on the dashboard via USB cable:</p>
         
-        <div class="step-card">
-          <div class="step-title">Step 1: Install Phone App & Enable USB Debugging</div>
-          <div>Install <strong>IP Webcam</strong> (or DroidCam) from Google Play. Enable <em>USB Debugging</em> in Developer Options on your phone.</div>
+        <!-- LIVE PHONE STATUS BADGE -->
+        <div id="adb-live-badge" style="display: flex; align-items: center; justify-content: space-between; padding: 12px 16px; border-radius: 10px; background: rgba(59, 130, 246, 0.1); border: 1px solid rgba(59, 130, 246, 0.3); margin-bottom: 16px;">
+          <div style="display: flex; align-items: center; gap: 10px;">
+            <span id="adb-badge-icon" style="font-size: 1.4rem;">🔍</span>
+            <div>
+              <div id="adb-badge-title" style="font-weight: 600; font-size: 0.88rem; color: #fff;">Checking USB Connection...</div>
+              <div id="adb-badge-desc" style="font-size: 0.75rem; color: var(--text-muted);">Scanning for Android devices via ADB...</div>
+            </div>
+          </div>
+          <button id="btn-refresh-adb" style="background: rgba(255,255,255,0.08); border: 1px solid var(--border-subtle); color: #fff; padding: 4px 10px; border-radius: 6px; font-size: 0.75rem; cursor: pointer;">↻ Refresh</button>
         </div>
 
         <div class="step-card">
-          <div class="step-title">Step 2: Connect Phone via USB & Start Server</div>
-          <div>Plug your phone into your Mac via USB. In the app, scroll to the bottom and tap <strong>Start Server</strong>.</div>
+          <div class="step-title">Step 1: Install a Free Camera App on your Phone</div>
+          <div style="font-size: 0.82rem; color: var(--text-secondary); line-height: 1.4; margin-top: 4px;">
+            Install <strong>IP Webcam</strong> (recommended) or <strong>DroidCam</strong> from Google Play Store on your phone:
+          </div>
+          <div style="display: flex; gap: 10px; margin-top: 10px;">
+            <a href="https://play.google.com/store/apps/details?id=com.pas.webcam" target="_blank" rel="noopener" 
+               style="flex: 1; text-align: center; padding: 8px 12px; background: rgba(16, 185, 129, 0.15); border: 1px solid rgba(16, 185, 129, 0.3); border-radius: 8px; color: #10b981; text-decoration: none; font-size: 0.78rem; font-weight: 600;">
+              📥 IP Webcam (Google Play)
+            </a>
+            <a href="https://play.google.com/store/apps/details?id=dev47apps.droidcam" target="_blank" rel="noopener" 
+               style="flex: 1; text-align: center; padding: 8px 12px; background: rgba(99, 102, 241, 0.15); border: 1px solid rgba(99, 102, 241, 0.3); border-radius: 8px; color: #818cf8; text-decoration: none; font-size: 0.78rem; font-weight: 600;">
+              📥 DroidCam (Google Play)
+            </a>
+          </div>
         </div>
 
         <div class="step-card">
-          <div class="step-title">Step 3: Connect Stream</div>
-          <div>Click the button below to auto-forward the port through USB cable, or enter the stream URL directly:</div>
+          <div class="step-title">Step 2: Start Video Server on your Phone</div>
+          <div style="font-size: 0.82rem; color: var(--text-secondary); line-height: 1.4; margin-top: 4px;">
+            Open <strong>IP Webcam</strong>, scroll to the bottom and tap <strong>Start Server</strong>. (Or if using DroidCam, tap the Start button).
+          </div>
+        </div>
+
+        <div class="step-card">
+          <div class="step-title">Step 3: Connect Stream to RoadVision AI</div>
+          <div style="font-size: 0.82rem; color: var(--text-secondary); margin-top: 4px;">
+            Click below to auto-forward ports 8080 & 4747 over physical USB cable with zero latency:
+          </div>
           
           <div style="margin-top: 12px; display: flex; gap: 10px;">
-            <button id="btn-adb-connect" class="btn-primary" style="flex: 1;">
-              ⚡ Auto ADB USB Forward
+            <button id="btn-adb-connect" class="btn-primary" style="flex: 1; padding: 10px 16px; font-weight: 600;">
+              ⚡ Connect USB Camera
             </button>
           </div>
-          <div id="adb-status-text" style="font-size: 0.78rem; margin-top: 6px; color: var(--text-muted);"></div>
+          <div id="adb-status-text" style="font-size: 0.78rem; margin-top: 8px; color: var(--text-muted);"></div>
 
-          <div style="margin-top: 12px;">
-            <label style="font-size: 0.78rem; font-weight: 600; color: var(--text-secondary);">Direct Stream URL (e.g. Wi-Fi IP or Localhost):</label>
-            <div style="display: flex; gap: 8px; margin-top: 4px;">
+          <div style="margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--border-subtle);">
+            <label style="font-size: 0.78rem; font-weight: 600; color: var(--text-secondary);">Direct Stream URL (Local USB Tunnel or Wi-Fi IP):</label>
+            <div style="display: flex; gap: 8px; margin-top: 6px;">
               <input type="text" id="input-phone-url" value="http://127.0.0.1:8080/video" 
+                     placeholder="http://127.0.0.1:8080/video or http://127.0.0.1:4747/video"
                      style="flex: 1; padding: 8px 12px; background: rgba(255,255,255,0.06); border: 1px solid var(--border-subtle); border-radius: 8px; color: #fff; font-family: var(--font-mono); font-size: 0.8rem;">
-              <button id="btn-apply-phone-stream" class="btn-secondary">Connect</button>
+              <button id="btn-apply-phone-stream" class="btn-secondary">Connect URL</button>
+            </div>
+            <div style="font-size: 0.72rem; color: var(--text-muted); margin-top: 4px;">
+              Tip: For IP Webcam use <code>:8080/video</code> • For DroidCam use <code>:4747/video</code>
             </div>
           </div>
         </div>
 
+      </div>
+    </div>
+  </div>
+
+  <!-- PHOTO LIGHTBOX MODAL -->
+  <div id="photo-lightbox-modal" class="modal-backdrop">
+    <div class="lightbox-window">
+      <div class="lightbox-header">
+        <span id="lightbox-title">Hazard Photo Snapshot</span>
+        <button id="btn-close-lightbox" class="modal-close">&times;</button>
+      </div>
+      <div class="lightbox-body">
+        <img id="lightbox-img" src="" alt="Full Pothole Snapshot">
+        <div id="lightbox-caption" class="lightbox-caption"></div>
       </div>
     </div>
   </div>

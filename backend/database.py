@@ -146,5 +146,45 @@ def get_all_inspections(limit: int = 15) -> List[Dict[str, Any]]:
     return results
 
 
+def get_map_route_detections(inspection_id: Optional[int] = None) -> List[Dict[str, Any]]:
+    """Fetches ordered detection points with lat/lng for mapping the travel route."""
+    conn = get_connection()
+    cursor = conn.cursor()
+    if inspection_id:
+        cursor.execute("""
+            SELECT id, inspection_id, timestamp, confidence, severity, bbox, snapshot_path, lat, lng
+            FROM detections
+            WHERE inspection_id = ? AND lat IS NOT NULL AND lng IS NOT NULL
+            ORDER BY id ASC
+        """, (inspection_id,))
+    else:
+        cursor.execute("""
+            SELECT id, inspection_id, timestamp, confidence, severity, bbox, snapshot_path, lat, lng
+            FROM (
+                SELECT * FROM detections
+                WHERE lat IS NOT NULL AND lng IS NOT NULL
+                ORDER BY id DESC
+                LIMIT 150
+            ) sub
+            ORDER BY id ASC
+        """)
+    rows = cursor.fetchall()
+    results = []
+    for r in rows:
+        results.append({
+            "id": r["id"],
+            "inspection_id": r["inspection_id"],
+            "timestamp": r["timestamp"],
+            "confidence": round(r["confidence"], 2),
+            "severity": r["severity"],
+            "bbox": json.loads(r["bbox"]) if r["bbox"] else [],
+            "snapshot_path": r["snapshot_path"],
+            "lat": r["lat"],
+            "lng": r["lng"]
+        })
+    conn.close()
+    return results
+
+
 # Initialize database upon import
 init_db()

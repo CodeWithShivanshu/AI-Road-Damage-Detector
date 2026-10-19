@@ -12,12 +12,14 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
 from backend.engine import InferenceEngine
-from backend.camera import CameraManager, forward_adb_usb_port
+from backend.camera import CameraManager, forward_adb_usb_port, get_adb_status
+from backend.location import gps_tracker
 from backend.database import (
     create_inspection_session,
     end_inspection_session,
     get_recent_detections,
-    get_all_inspections
+    get_all_inspections,
+    get_map_route_detections
 )
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -74,6 +76,19 @@ class SourceChangeRequest(BaseModel):
 
 class SettingsRequest(BaseModel):
     conf_threshold: Optional[float] = None
+
+
+class DeviceLocationUpdate(BaseModel):
+    lat: float
+    lng: float
+    heading: Optional[float] = None
+    speed: Optional[float] = None
+
+
+class SetAnchorRequest(BaseModel):
+    lat: float
+    lng: float
+    location_name: Optional[str] = ""
 
 
 @app.get("/api/status")
@@ -197,6 +212,11 @@ def connect_adb(local_port: int = 8080, phone_port: int = 8080):
     return {"success": success, "message": message}
 
 
+@app.get("/api/adb/status")
+def get_adb_info():
+    return get_adb_status()
+
+
 @app.get("/api/detections/recent")
 def get_detections():
     return get_recent_detections(limit=30)
@@ -205,6 +225,46 @@ def get_detections():
 @app.get("/api/inspections/history")
 def get_inspections():
     return get_all_inspections(limit=15)
+
+
+@app.get("/api/location/current")
+def get_current_location():
+    return gps_tracker.get_current_location()
+
+
+@app.post("/api/location/update")
+def update_location(req: DeviceLocationUpdate):
+    return gps_tracker.update_device_location(req.lat, req.lng, req.heading, req.speed)
+
+
+@app.post("/api/location/set_anchor")
+def set_location_anchor(req: SetAnchorRequest):
+    return gps_tracker.set_anchor(req.lat, req.lng, req.location_name or "")
+
+
+@app.get("/api/location/search")
+def search_location(q: str):
+    results = gps_tracker.search_places(q)
+    return {"query": q, "count": len(results), "results": results}
+
+
+@app.get("/api/map/data")
+def get_map_data(session_only: bool = False):
+    global current_inspection_id
+    markers = get_map_route_detections(inspection_id=current_inspection_id)
+    if not markers and not session_only:
+        markers = get_map_route_detections(inspection_id=None)
+
+    cur_loc = gps_tracker.get_current_location()
+    route = gps_tracker.get_route_points()
+
+    return {
+        "current_location": cur_loc,
+        "route": route,
+        "markers": markers,
+        "total_markers": len(markers),
+        "active_session_id": current_inspection_id
+    }
 
 
 @app.post("/api/upload_video")

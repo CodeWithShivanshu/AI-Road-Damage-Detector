@@ -4,6 +4,7 @@ RoadVision AI - CLI Inference Runner
 Runs pothole detection on images, videos, or cameras using the modular application framework.
 """
 
+import os
 import argparse
 import sys
 from pathlib import Path
@@ -12,6 +13,14 @@ from pathlib import Path
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
+
+# Automatically switch to project .venv if not running inside it
+venv_python = PROJECT_ROOT / ".venv" / "bin" / "python"
+if venv_python.exists():
+    real_venv_prefix = str((PROJECT_ROOT / ".venv").resolve())
+    current_prefix = str(Path(sys.prefix).resolve())
+    if current_prefix != real_venv_prefix and sys.executable != str(venv_python):
+        os.execv(str(venv_python), [str(venv_python)] + sys.argv)
 
 import cv2
 from app.core.config import settings
