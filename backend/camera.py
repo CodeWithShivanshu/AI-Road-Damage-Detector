@@ -1,5 +1,7 @@
 import cv2
 import time
+import socket
+import urllib.parse
 import shutil
 import subprocess
 import threading
@@ -7,6 +9,38 @@ from pathlib import Path
 from typing import Optional, Tuple, Dict, Any, List
 
 ROOT = Path(__file__).resolve().parent.parent
+
+
+def is_stream_port_open(url: str, timeout: float = 0.15) -> bool:
+    """
+    Fast, completely silent pre-check to test if an HTTP stream is actually responding
+    with HTTP data before calling OpenCV/FFmpeg.
+    Works through local ADB tunnel proxies and eliminates all 'Connection refused'
+    and 'Couldn't read video stream' terminal spam.
+    """
+    try:
+        parsed = urllib.parse.urlparse(url)
+        if parsed.scheme not in ("http", "https"):
+            return True
+        host = parsed.hostname or "127.0.0.1"
+        port = parsed.port or (443 if parsed.scheme == "https" else 80)
+        s = socket.create_connection((host, port), timeout=0.06)
+    except Exception:
+        return False
+
+    try:
+        s.settimeout(timeout)
+        path = parsed.path or "/"
+        s.sendall(f"GET {path} HTTP/1.0\r\nHost: {host}:{port}\r\nUser-Agent: RoadVision\r\n\r\n".encode())
+        data = s.recv(16)
+        s.close()
+        return len(data) > 0 and b"HTTP" in data
+    except Exception:
+        try:
+            s.close()
+        except Exception:
+            pass
+        return False
 
 
 def find_adb_binary() -> Optional[str]:
@@ -71,7 +105,7 @@ def get_device_details(adb_bin: str, device_id: str) -> Dict[str, str]:
 
 
 def check_installed_camera_apps(adb_bin: str, device_id: str) -> Dict[str, bool]:
-    """Checks if common streaming camera apps (IP Webcam, DroidCam) are installed on the device."""
+    """Checks if common streaming camera apps (IP Webcam, DroidCam, DroidCam OBS) are installed on the device."""
     apps = {"ip_webcam": False, "droidcam": False}
     try:
         res = subprocess.run([adb_bin, "-s", device_id, "shell", "pm", "list", "packages"],
@@ -79,7 +113,11 @@ def check_installed_camera_apps(adb_bin: str, device_id: str) -> Dict[str, bool]
         if res.returncode == 0:
             packages = res.stdout
             apps["ip_webcam"] = "com.pas.webcam" in packages
-            apps["droidcam"] = "dev47apps.droidcam" in packages or "com.dev47apps.droidcamx" in packages
+            apps["droidcam"] = any(pkg in packages for pkg in [
+                "dev47apps.droidcam",
+                "com.dev47apps.droidcamx",
+                "com.dev47apps.obsdroidcam"
+            ])
     except Exception:
         pass
     return apps
@@ -88,7 +126,7 @@ def check_installed_camera_apps(adb_bin: str, device_id: str) -> Dict[str, bool]
 def forward_adb_usb_port(local_port: int = 8080, phone_port: int = 8080) -> Tuple[bool, str]:
     """
     Sets up ADB USB port forwarding for phone camera streaming over a physical USB cable.
-    Forwards both port 8080 (IP Webcam) and port 4747 (DroidCam) for maximum compatibility.
+    Forwards both port 8080 (IP Webcam) and port 4747 (DroidCam / DroidCam OBS) for maximum compatibility.
     """
     adb_bin = find_adb_binary()
     if not adb_bin:
@@ -220,9 +258,14 @@ class CameraManager:
             elif source_type in ["usb_phone", "ip_camera"]:
                 target_url = (custom_target or "").strip()
                 if not target_url or target_url == "auto":
-                    target_url = "http://127.0.0.1:8080/video"
+                    # Default: port 8080 (IP Webcam) or 4747 (DroidCam)
+                    target_url = "http://127.0.0.1:4747/video" if "4747" in (custom_target or "") else "http://127.0.0.1:8080/video"
                 self.source_path = target_url
                 self.status_message = f"Connecting to phone stream at {self.source_path}..."
+
+                # Auto-ensure USB tunnels are active in background if usb_phone
+                if source_type == "usb_phone":
+                    threading.Thread(target=forward_adb_usb_port, daemon=True).start()
 
             elif source_type == "custom_file":
                 self.source_path = custom_target or ""
@@ -263,13 +306,20 @@ class CameraManager:
                     elif "127.0.0.1:4747" in self.source_path:
                         candidates.extend([
                             "http://127.0.0.1:4747/mjpegfeed",
-                            "http://127.0.0.1:8080/video"
+                            "http://127.0.0.1:8080/video",
+                            "http://127.0.0.1:8080/videofeed"
                         ])
 
                     connected = False
                     for cand in candidates:
                         if not self.running:
                             break
+
+                        # Pre-check socket: NEVER call cv2.VideoCapture on a closed port
+                        # This completely prevents terminal spam of "[tcp @ ...] Connection refused"
+                        if not is_stream_port_open(cand):
+                            continue
+
                         try:
                             cap = cv2.VideoCapture(cand)
                             if cap.isOpened():
@@ -296,16 +346,22 @@ class CameraManager:
                     if not connected:
                         with self.lock:
                             self.is_connected = False
-                            self.status_message = f"Waiting for phone stream at {self.source_path}... (Tap 'Start Server' in IP Webcam / DroidCam)"
+                            self.status_message = f"Waiting for phone stream at {self.source_path}... (Ensure app server is active)"
                         time.sleep(0.5)
                         continue
 
-            if not self.cap or not self.cap.isOpened():
-                time.sleep(0.1)
+            with self.lock:
+                if not self.running or not self.cap or not self.cap.isOpened():
+                    cap = None
+                else:
+                    cap = self.cap
+
+            if not cap:
+                time.sleep(0.05)
                 continue
 
             try:
-                ret, frame = self.cap.read()
+                ret, frame = cap.read()
             except Exception:
                 ret, frame = False, None
 
@@ -343,6 +399,11 @@ class CameraManager:
     def release(self):
         with self.lock:
             self.running = False
+
+        if self.thread and self.thread.is_alive() and threading.current_thread() != self.thread:
+            self.thread.join(timeout=1.0)
+
+        with self.lock:
             if self.cap:
                 self.cap.release()
                 self.cap = None
